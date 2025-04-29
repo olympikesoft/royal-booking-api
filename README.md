@@ -3,233 +3,228 @@
 This project provides a backend API for managing a library system. It allows for managing book references, users, borrowing/reservations, user wallets, and automated reminders.
 
 Built using Node.js, TypeScript, and potentially leveraging Domain-Driven Design (DDD) principles. The API runs within Docker containers.
-This project don't have implemented Auth system and dont use SMTP implementation. 
-Note: NODE_ENV=dev for test purposes.
+
+**Note:** This project does **not** have a dedicated authentication system implemented (user identification relies on passing IDs). It also uses a **mock or console-based email service** instead of a real SMTP implementation for reminders. `NODE_ENV=dev` is assumed for development/testing purposes.
 
 ## Features
 
-*   **Reference Management:** Add, get, update, and delete book references.
-*   **Catalog Search:** Search for book references by title, author, or publication year.
-*   **Reservation & Borrowing:** Users can borrow available books (up to 3 concurrently, one copy per reference). Book availability is tracked (4 copies per reference assumed). Reservation history is maintained.
-*   **Wallet System:** Each user has a wallet. Borrowing costs 3 euros. Late fees (0.2 euros/day) are applied and deducted. If fees reach the book's retail price, the user is considered to have bought it.
-*   **Automated Reminders:** Email notifications for upcoming due dates and late returns (handled by a background scheduler).
-*   **Data Seeding:** Initial book references can be seeded from a CSV file.
+- **Reference Management:** Add, get, update, and delete book references.
+- **Catalog Search:** Search for book references by title, author, or publication year.
+- **Reservation & Borrowing:** Users can borrow available books (up to 3 concurrently, one copy per reference). Book availability is tracked (4 copies per reference assumed by default). Reservation history is maintained.
+- **Wallet System:** Each user has a wallet. Borrowing costs 3 euros. Late fees (0.2 euros/day) are applied and deducted upon return. If fees reach the book's retail price, the user is considered to have bought it.
+- **Automated Reminders:** Notifications (logged or via mock email) for upcoming due dates and late returns, handled by a background scheduler.
+- **Data Seeding:** Initial book references can be seeded from a CSV file.
 
-## Project Structure
-
+## Project Structure (Illustrative DDD Layering)
 
 library-management-system/
 ├── src/
-│ ├── domain/ # Domain layer (Entities, Repos, Domain Services)
-│ │ ├── models/
+│ ├── domain/ # Core Domain Logic (Independent of Infrastructure)
+│ │ ├── models/ # Domain Entities/Aggregates
 │ │ │ ├── book/
 │ │ │ ├── user/
 │ │ │ ├── reservation/
-│ │ │ └── wallet/
-│ │ ├── repositories/
-│ │ └── services/
-│ ├── application/ # Application layer (Use Cases, DTOs)
-│ │ ├── services/
-│ │ ├── dtos/
-│ │ └── validators/
-│ ├── infrastructure/ # Infrastructure layer (DB, Email, External Services)
-│ │ ├── database/
-│ │ ├── repositories/
-│ │ ├── email/
-│ │ └── scheduler/
-│ ├── interfaces/ # Interface layer (API Controllers, CLI, etc.)
-│ │ ├── http/
-│ │ └── jobs/
-│ ├── config/ # Configuration
-│ └── utils/ # Utilities
-├── tests/ # Automated tests
-├── scripts/ # Seeding scripts, etc.
-│ └── seed.ts
-│ └── books_sample.csv # Sample book data
+│ │ │ └── wallet/ # Wallet Entity
+│ │ ├── repositories/ # Repository _Interfaces_ (Contracts)
+│ │ └── services/ # Domain Services (Logic involving multiple entities)
+│ ├── application/ # Application Layer (Orchestrates Use Cases)
+│ │ ├── services/ # Application Services / Use Cases
+│ │ ├── dtos/ # Data Transfer Objects
+│ │ └── validators/ # Input Validation Logic
+│ ├── infrastructure/ # Infrastructure Layer (Deals with external concerns)
+│ │ ├── database/ # Database connection, schemas (if ORM/ODM specific)
+│ │ ├── repositories/ # Concrete Repository _Implementations_ (e.g., MongoUserRepository)
+│ │ ├── email/ # Email service implementation (e.g., MockEmailService)
+│ │ └── scheduler/ # Background job scheduler implementation
+│ ├── interfaces/ # Interface Layer (Entry points to the application)
+│ │ ├── http/ # API Controllers, Routes, Middleware
+│ │ └── jobs/ # Job definitions run by the scheduler
+│ ├── config/ # Configuration files/logic
+│ └── utils/ # Shared utilities
+├── tests/ # Automated tests (Unit, Integration, E2E)
+├── scripts/ # Utility scripts
+│ ├── seed.ts # Data seeding script
+│ └── books_sample.csv # Sample book data for seeding
 ├── .env # Environment variables (ignored by git)
-├── .env.example # Example environment variables
-├── docker-compose.yml # Docker Compose configuration
-├── Dockerfile # Dockerfile for the application
+├── .env.example # Example environment variables file
+├── docker-compose.yml # Docker Compose configuration for services (app, db)
+├── Dockerfile # Dockerfile for building the application image
 ├── package.json
 ├── tsconfig.json
-├── nodemon.json
+├── nodemon.json # Nodemon configuration for development restarts
 └── README.md # This file
 
 ## Prerequisites
 
-*   Docker: [https://www.docker.com/get-started](https://www.docker.com/get-started)
-*   Docker Compose: Usually included with Docker Desktop.
-*   A tool for making HTTP requests (like `curl`, Postman, or Insomnia).
+- Docker: [https://www.docker.com/get-started](https://www.docker.com/get-started)
+- Docker Compose: Usually included with Docker Desktop.
+- A tool for making HTTP requests (like `curl`, Postman, or Insomnia).
 
 ## Getting Started
 
 1.  **Clone the repository:**
+
     ```bash
     git clone <your-repository-url>
     cd library-management-system
     ```
 
 2.  **Environment Configuration:**
-    Copy the example environment file and customize it if necessary (e.g., database credentials, ports).
+    Copy the example environment file and fill in your details.
+
     ```bash
     cp .env.example .env
     ```
-    *Ensure the `MONGO_URI`, `MONGO_USER`, `MONGO_PASS`, and `MONGO_DB_NAME` variables match your `docker-compose.yml` setup.*
-    *The default API port is assumed to be `3000`. Adjust `curl` commands if you change `PORT` in `.env`.*
+
+    - Edit `.env`. Ensure the `MONGO_URI`, `MONGO_USER`, `MONGO_PASS`, and `MONGO_DB_NAME` variables align with your `docker-compose.yml` service definitions (especially the `mongo` service environment variables).
+    - The default API port is `3000`. Adjust `PORT` in `.env` if needed, and update `curl` commands accordingly.
 
 3.  **Build and Start Containers:**
-    This command will build the Docker images (if they don't exist) and start the application API and MongoDB database containers in detached mode.
+    This command builds the Docker image for the app (if needed) and starts the application and MongoDB containers defined in `docker-compose.yml`.
 
     ```bash
-    docker-compose build --no-cache app
+    docker-compose up -d --build
     ```
 
-     ```bash
-    docker-compose up -d
-    ```
+    _(Using `--build` ensures the image is rebuilt if Dockerfile or source code changes. Add `--no-cache` to the `build` command specifically if you suspect caching issues: `docker-compose build --no-cache app`)_
 
 4.  **Check Container Logs (Optional):**
-    To view the logs from the running application container:
+    Tail the logs from the running application container to monitor startup and requests.
+
     ```bash
     docker-compose logs -f app
     ```
-    *(Replace `library-management-api` if your service name in `docker-compose.yml` is different)*
+
+    _(Replace `app` if your service name in `docker-compose.yml` is different)_
 
 5.  **Seed Initial Data:**
-    The system requires some initial data to function correctly (book references and potentially mock users).
+    Execute the seeding script inside the running application container. This populates the database with initial book references from `scripts/books_sample.csv`. It might also create initial mock users if designed to do so (check `scripts/seed.ts`).
 
-    *   **Seed Book References:** This command executes the seeding script inside the running container, which reads from `scripts/books_sample.csv`.
-        ```bash
-        docker exec -it library-management-api npm run seed
-        ```
-    *   **Mock Users:** The application likely creates mock users if none exist or relies on user creation via the API.
-     docker exec -it library-management-api /bin/sh
-     run npm run seed
-     Check the seeder script (`scripts/seed.ts`) or application startup logic for details. If users need to be created manually via API, use the `POST /api/v1/users` endpoint below.
+    ```bash
+    # Replace 'library-management-system-app-1' with the actual running container name/ID if needed
+    # You can find the name using 'docker ps'
+    # Or use the service name from docker-compose.yml:
+    docker-compose exec app npm run seed
+    ```
+
+    - If the seeder doesn't create users, you'll need to create them manually using the `POST /api/v1/users` endpoint.
 
 6.  **Verify Database Content (Optional):**
-    You can connect to the MongoDB container to check the collections.
+    Connect to the MongoDB container to inspect the data.
+
     ```bash
-    # Connect to the MongoDB container shell
-    docker exec -it library-mongodb mongosh -u admin -p password --authenticationDatabase admin
+    # Connect using docker-compose exec (uses credentials from docker-compose.yml)
+    docker-compose exec mongo mongosh -u $MONGO_INITDB_ROOT_USERNAME -p $MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin
 
     # Inside the mongosh shell:
-    use royal-library; // Or your DB name from .env
+    use royal-library; // Use the DB name specified in your .env (MONGO_DB_NAME)
     show collections;
-    db.references.find().pretty();
-    db.users.find().pretty();
-    db.reservations.find().pretty();
+    db.references.find().pretty(); // Check seeded books
+    db.users.find().pretty();      // Check users
+    db.wallets.find().pretty();    // Check wallets
+    db.reservations.find().pretty(); // Check reservations
     exit;
     ```
 
 ## API Endpoints & Testing with `curl`
 
-The API base URL is assumed to be `http://localhost:3000/api/v1`.
+The API base URL is `http://localhost:3000/api/v1`.
 
-**Note:** Replace placeholder values like `<BOOK_ID>`, `<USER_ID>`, `<RESERVATION_ID>` with actual IDs obtained from previous API calls (e.g., from `GET` responses or creation responses).
+**Note:** Replace placeholder values like `<BOOK_ID>`, `<USER_ID>`, `<RESERVATION_ID>`, `<WALLET_ID>` with actual IDs obtained from previous API call responses.
 
 ---
 
-### 1. Book (Books Catalogue)
+### 1. Book References (Catalogue)
 
 **a. Add a New Book Reference**
 
-*   **Endpoint:** `POST /api/v1/books`
-*   **Description:** Adds a new book reference to the catalog. Assumes 4 available copies are created internally.
-*   **Body (Based on `CreateBookDTO`):**
-    ```json
-    {
-      "isbn": "978-0345391803", // Example valid ISBN-13
-      "title": "The Hitchhiker's Guide to the Galaxy",
-      "authors": ["Douglas Adams"], // Array of strings, at least one
-      "publicationYear": 1979,
-      "publisher": "Pan Books",
-      "retailPrice": 15.99, // Used for late fee calculation if book is "bought"
-      "totalCopies": 4,     // Total physical copies
-      "availableCopies": 4, // Initially available copies (must be <= totalCopies)
-      "categories": ["Science Fiction", "Comedy"], // Array of strings
-      "description": "Seconds before the Earth is demolished..." // Optional
-    }
-    ```
-*   **`curl` Example:**
-    ```bash
-    curl -X POST http://localhost:3000/api/v1/books \
-         -H "Content-Type: application/json" \
-         -d '{
-              "isbn": "978-0345391803",
-              "title": "The Hitchhiker'\''s Guide to the Galaxy",
-              "authors": ["Douglas Adams"],
-              "publicationYear": 1979,
-              "publisher": "Pan Books",
-              "retailPrice": 15.99,
-              "totalCopies": 4,
-              "availableCopies": 4,
-              "categories": ["Science Fiction", "Comedy"],
-              "description": "Seconds before the Earth is demolished..."
-            }'
-    ```
+- **Endpoint:** `POST /api/v1/books`
+- **Description:** Adds a new book reference. `availableCopies` should usually equal `totalCopies` initially.
+- **Body (`CreateBookDTO`):**
+  ```json
+  {
+    "isbn": "978-1400079179",
+    "title": "1984",
+    "authors": ["George Orwell"],
+    "publicationYear": 1949,
+    "publisher": "Signet Classic",
+    "retailPrice": 9.99,
+    "totalCopies": 4,
+    "availableCopies": 4,
+    "categories": ["Dystopian", "Political Fiction", "Social Science Fiction"],
+    "description": "A startlingly original and haunting novel..."
+  }
+  ```
+- **`curl` Example:**
+  ```bash
+  curl -X POST http://localhost:3000/api/v1/books \
+       -H "Content-Type: application/json" \
+       -d '{
+            "isbn": "978-1400079179",
+            "title": "1984",
+            "authors": ["George Orwell"],
+            "publicationYear": 1949,
+            "publisher": "Signet Classic",
+            "retailPrice": 9.99,
+            "totalCopies": 4,
+            "availableCopies": 4,
+            "categories": ["Dystopian", "Political Fiction"],
+            "description": "A haunting novel..."
+          }'
+  ```
 
 **b. Get All Book References (with Search)**
 
-*   **Endpoint:** `GET /api/v1/books`
-*   **Description:** Retrieves a list of all book references. Supports filtering by title, author, and publication year via query parameters. Includes availability count.
-*   **Query Parameters (Optional):**
-    *   `title=<string>`
-    *   `author=<string>`
-    *   `year=<number>`
-*   **`curl` Examples:**
-    *   Get all:
-        ```bash
-        curl http://localhost:3000/api/v1/books
-        ```
-    *   Search by author:
-        ```bash
-        curl "http://localhost:3000/api/v1/books?author=Douglas%20Adams"
-        ```
-    *   Search by year:
-        ```bash
-        curl "http://localhost:3000/api/v1/books?year=1979"
-        ```
-    *   Search by title:
-        ```bash
-        curl "http://localhost:3000/api/v1/books?title=Hitchhiker" # Partial match likely
-        ```
+- **Endpoint:** `GET /api/v1/books`
+- **Description:** Retrieves book references, optionally filtered. Includes availability count.
+- **Query Parameters (Optional):** `title`, `author`, `year`
+- **`curl` Examples:**
+  ```bash
+  # Get all
+  curl http://localhost:3000/api/v1/books
+  # Search by author
+  curl "http://localhost:3000/api/v1/books?author=Orwell"
+  # Search by year
+  curl "http://localhost:3000/api/v1/books?year=1949"
+  # Search by title (partial match likely supported)
+  curl "http://localhost:3000/api/v1/books?title=1984"
+  ```
 
 **c. Get a Specific Book Reference**
 
-*   **Endpoint:** `GET /api/v1/books/<BOOK_ID>`
-*   **Description:** Retrieves details for a single book reference, including availability.
-*   **`curl` Example:** (Replace `<BOOK_ID>` with an actual ID from the `GET /books` response)
-    ```bash
-    curl http://localhost:3000/api/v1/books/<BOOK_ID>
-    ```
+- **Endpoint:** `GET /api/v1/books/<BOOK_ID>`
+- **Description:** Retrieves details for a single book reference.
+- **`curl` Example:**
+  ```bash
+  curl http://localhost:3000/api/v1/books/<BOOK_ID>
+  ```
 
 **d. Update a Book Reference**
 
-*   **Endpoint:** `PUT /api/v1/books/<BOOK_ID>`
-*   **Description:** Updates details of an existing book reference.
-*   **Body:** (Include fields to update)
-    ```json
-    {
-      "title": "Updated Title",
-      "retailPrice": 16.50
-    }
-    ```
-*   **`curl` Example:**
-    ```bash
-    curl -X PUT http://localhost:3000/api/v1/books/<BOOK_ID> \
-         -H "Content-Type: application/json" \
-         -d '{ "title": "Updated Title", "retailPrice": 16.50 }'
-    ```
+- **Endpoint:** `PUT /api/v1/books/<BOOK_ID>`
+- **Description:** Updates details of an existing book reference.
+- **Body:** (Include fields to update)
+  ```json
+  {
+    "title": "Nineteen Eighty-Four",
+    "retailPrice": 10.5
+  }
+  ```
+- **`curl` Example:**
+  ```bash
+  curl -X PUT http://localhost:3000/api/v1/books/<BOOK_ID> \
+       -H "Content-Type: application/json" \
+       -d '{ "title": "Nineteen Eighty-Four", "retailPrice": 10.50 }'
+  ```
 
 **e. Delete a Book Reference**
 
-*   **Endpoint:** `DELETE /api/v1/books/<BOOK_ID>`
-*   **Description:** Deletes a book reference. Consider implications if books are currently borrowed. (Implementation might prevent deletion if borrowed copies exist).
-*   **`curl` Example:**
-    ```bash
-    curl -X DELETE http://localhost:3000/api/v1/books/<BOOK_ID>
-    ```
+- **Endpoint:** `DELETE /api/v1/books/<BOOK_ID>`
+- **Description:** Deletes a book reference. Fails if copies are currently borrowed.
+- **`curl` Example:**
+  ```bash
+  curl -X DELETE http://localhost:3000/api/v1/books/<BOOK_ID>
+  ```
 
 ---
 
@@ -237,41 +232,40 @@ The API base URL is assumed to be `http://localhost:3000/api/v1`.
 
 **a. Create a User**
 
-*   **Endpoint:** `POST /api/v1/users`
-*   **Description:** Creates a new user with an initial wallet balance (e.g., default to 0 or a predefined amount).
-*   **Body:**
-    ```json
-    {
-      "name": "Alice Wonderland",
-      "email": "alice@example.com"
-      // "initialBalance": 10.0 // Optional: Or handled by default
-    }
-    ```
-*   **`curl` Example:**
-    ```bash
-    curl -X POST http://localhost:3000/api/v1/users \
-         -H "Content-Type: application/json" \
-         -d '{ "name": "Alice Wonderland", "email": "alice@example.com" }'
-    ```
-    *(Note the user ID returned in the response, you'll need it for other actions)*
+- **Endpoint:** `POST /api/v1/users`
+- **Description:** Creates a new user. A corresponding wallet is typically created automatically with a default balance (e.g., 0 or a configured starting amount).
+- **Body:**
+  ```json
+  {
+    "name": "Bob The Builder",
+    "email": "bob@example.com"
+  }
+  ```
+- **`curl` Example:**
+  ```bash
+  curl -X POST http://localhost:3000/api/v1/users \
+       -H "Content-Type: application/json" \
+       -d '{ "name": "Bob The Builder", "email": "bob@example.com" }'
+  ```
+  _(Save the returned `_id` for `<USER_ID>`)_
 
 **b. Get All Users**
 
-*   **Endpoint:** `GET /api/v1/users`
-*   **Description:** Retrieves a list of all users.
-*   **`curl` Example:**
-    ```bash
-    curl http://localhost:3000/api/v1/users
-    ```
+- **Endpoint:** `GET /api/v1/users`
+- **Description:** Retrieves a list of all users.
+- **`curl` Example:**
+  ```bash
+  curl http://localhost:3000/api/v1/users
+  ```
 
 **c. Get User Details**
 
-*   **Endpoint:** `GET /api/v1/users/<USER_ID>`
-*   **Description:** Retrieves details for a specific user, including their wallet balance and potentially current borrowings.
-*   **`curl` Example:** (Replace `<USER_ID>` with an actual ID)
-    ```bash
-    curl http://localhost:3000/api/v1/users/<USER_ID>
-    ```
+- **Endpoint:** `GET /api/v1/users/<USER_ID>`
+- **Description:** Retrieves user details, often including wallet balance and possibly a summary of active borrowings.
+- **`curl` Example:**
+  ```bash
+  curl http://localhost:3000/api/v1/users/<USER_ID>
+  ```
 
 ---
 
@@ -279,134 +273,127 @@ The API base URL is assumed to be `http://localhost:3000/api/v1`.
 
 **a. Borrow a Book (Create Reservation)**
 
-*   **Endpoint:** `POST /api/v1/reservations`
-*   **Description:** Allows a user to borrow an available book reference. Deducts 3 euros from the user's wallet. Fails if the user already has 3 books borrowed, has this reference borrowed, insufficient funds, or no copies are available.
-*   **Body:**
-    ```json
-    {
-      "userId": "<USER_ID>",
-      "bookId": "<BOOK_ID>"
-    }
-    ```
-*   **`curl` Example:**
-    ```bash
-    curl -X POST http://localhost:3000/api/v1/reservations \
-         -H "Content-Type: application/json" \
-         -d '{ "userId": "6810e1282820d160e580e3e7>", "bookId": "6810e1269d298e01c88daee9" }'
-    ```
-    *(Note the reservation ID returned in the response)*
+- **Endpoint:** `POST /api/v1/reservations`
+- **Description:** A user borrows an available book. Deducts 3 euros. Fails if: user has >= 3 books, user already has this book, book unavailable, or insufficient funds.
+- **Body:**
+  ```json
+  {
+    "userId": "<USER_ID>",
+    "bookId": "<BOOK_ID>"
+  }
+  ```
+- **`curl` Example:**
+  ```bash
+  curl -X POST http://localhost:3000/api/v1/reservations \
+       -H "Content-Type: application/json" \
+       -d '{ "userId": "<USER_ID>", "bookId": "<BOOK_ID>" }'
+  ```
+  _(Save the returned `_id` for `<RESERVATION_ID>`)_
 
 **b. Get User's Reservation History**
 
-*   **Endpoint:** `GET /api/v1/users/<USER_ID>/reservations`
-*   **Description:** Retrieves the reservation history (past and present borrowings) for a specific user.
-*   **Query Parameters (Optional):**
-    *   `status=active` (Only show currently borrowed books)
-    *   `status=returned` (Only show returned books)
-*   **`curl` Example:**
-    ```bash
-    # Get all reservations for the user
-    curl http://localhost:3000/api/v1/users/<USER_ID>/reservations
-
-    # Get only active reservations for the user
-    curl "http://localhost:3000/api/v1/users/<USER_ID>/reservations?status=active"
-    ```
+- **Endpoint:** `GET /api/v1/users/<USER_ID>/reservations`
+- **Description:** Retrieves reservations for a user.
+- **Query Parameters (Optional):**
+  - `status=active` (Currently borrowed)
+  - `status=returned`
+  - `status=overdue`
+  - `status=purchased`
+- **`curl` Example:**
+  ```bash
+  # Get all for user
+  curl http://localhost:3000/api/v1/users/<USER_ID>/reservations
+  # Get active for user
+  curl "http://localhost:3000/api/v1/users/<USER_ID>/reservations?status=active"
+  ```
 
 **c. Return a Book**
 
-*   **Endpoint:** `POST /api/v1/reservations/<RESERVATION_ID>/return`
-*   **Description:** Marks a specific reservation (borrowed book) as returned. Calculates and applies late fees if applicable. Updates book availability.
-*   **`curl` Example:** (Replace `<RESERVATION_ID>` with the ID of an *active* reservation)
-    ```bash
-    curl -X POST http://localhost:3000/api/v1/reservations/<RESERVATION_ID>/return
-    ```
+- **Endpoint:** `POST /api/v1/reservations/<RESERVATION_ID>/return`
+- **Description:** Marks a borrowed book as returned. Calculates/applies late fees, updates book availability, and potentially marks as 'purchased' if fees exceed retail price.
+- **`curl` Example:**
+  ```bash
+  curl -X POST http://localhost:3000/api/v1/reservations/<RESERVATION_ID>/return
+  ```
 
-**d. Force dueDate for testing purposes**
-*   **Endpoint:** `POST /api/v1/reservations/<RESERVATION_ID>/return`
-*   **Description:** force return the reservation of book for specific date
-*   **`curl` Example:** (Replace `<RESERVATION_ID>` with the ID of an *active* reservation)
-    ```bash
-    curl -X PUT http://localhost:3000/api/v1/reservations/6810f66c1babdcf9c8916ff4/force-due-date \
-     -H "Content-Type: application/json" \
-     -d '{ "dueDate": "2025-04-15T12:00:00.000Z" }'
-    ```
+**d. Force Due Date (for Testing)**
+
+- **Endpoint:** `PUT /api/v1/reservations/<RESERVATION_ID>/force-due-date`
+- **Description:** Updates the `dueDate` of an active reservation for testing late fee calculations.
+- **Body:**
+  ```json
+  {
+    "dueDate": "2023-01-15T12:00:00.000Z" // A date in the past
+  }
+  ```
+- **`curl` Example:**
+  ```bash
+  curl -X PUT http://localhost:3000/api/v1/reservations/<RESERVATION_ID>/force-due-date \
+   -H "Content-Type: application/json" \
+   -d '{ "dueDate": "2023-01-15T12:00:00.000Z" }'
+  ```
+
 ---
 
 ### 4. Wallet
 
-**b. Create Wallet (Optional/Testing)**
+**a. Get User Wallet**
 
-*   **Endpoint:** `POST /api/v1/wallets`
-*   **Description:** Adds funds to a user's wallet (useful for testing borrowing/fees).
-*   **Body:**
-    ```json
-    {
-      "userId": "<USER_ID>",
-      "amount": 20.00,
-    }
-    ```
-*   **`curl` Example:**
-    ```bash
-    curl -X POST http://localhost:3000/api/v1/wallets \
-         -H "Content-Type: application/json" \
-         -d '{ "amount": 20.00, "userId": "6810e1282820d160e580e3e7" }'
-    ```
+- **Endpoint:** `GET /api/v1/wallets/user/<USER_ID>`
+- **Description:** Retrieves the current balance and details of a user's wallet.
+- **`curl` Example:**
+  ```bash
+  curl http://localhost:3000/api/v1/wallets/user/<USER_ID>
+  ```
+  _(You might also get wallet info from `GET /api/v1/users/<USER_ID>`)_
 
-**b. Get User Wallet**
+**b. Add Funds to Wallet (Testing/Admin)**
 
-*   **Endpoint:** `GET /api/v1/wallets/user/<USER_ID>`
-*   **Description:** Retrieves the current balance of a user's wallet. (This might be included in `GET /api/v1/wallets/user/<USER_ID>` already).
-*   **`curl` Example:**
-    ```bash
-    curl http://localhost:3000/api/v1/wallets/user/<USER_ID>
-    ```
-
-**c. Add Funds to Wallet (Optional/Testing)**
-
-*   **Endpoint:** `POST /api/v1/wallets/<WALLET_ID>/deposit`
-*   **Description:** Adds funds to a user's wallet (useful for testing borrowing/fees).
-*   **Body:**
-    ```json
-    {
-      "amount": 20.00
-    }
-    ```
-*   **`curl` Example:**
-    ```bash
-    curl -X POST http://localhost:3000/api/v1/wallets/<WALLET_ID>/deposit \
-         -H "Content-Type: application/json" \
-         -d '{ "amount": 20.00 }'
-    ```
+- **Endpoint:** `POST /api/v1/wallets/<WALLET_ID>/deposit`
+  _(Note: You'll need the `<WALLET_ID>` from the `GET /api/v1/wallets/user/<USER_ID>` or `GET /api/v1/users/<USER_ID>` response)_
+- **Description:** Adds funds to a specific wallet. Useful for testing scenarios requiring funds.
+- **Body:**
+  ```json
+  {
+    "amount": 25.5
+  }
+  ```
+- **`curl` Example:**
+  ```bash
+  curl -X POST http://localhost:3000/api/v1/wallets/<WALLET_ID>/deposit \
+       -H "Content-Type: application/json" \
+       -d '{ "amount": 25.50 }'
+  ```
 
 ---
 
 ## Reminders
 
-Reminders (due date warnings, late return notices) are handled by background jobs/scheduler within the infrastructure layer. There are typically no direct API endpoints for users to trigger these. The system should automatically:
+- Reminders (due soon, overdue) are intended to be triggered automatically by a background scheduler (e.g., running every day).
+- These jobs check reservation due dates and send notifications (logged to console or via a mock email service in this setup).
+- There are no direct API endpoints for users to trigger these reminders.
+- Refer to `src/infrastructure/scheduler/` and `src/interfaces/jobs/` for implementation details.
 
-1.  Identify reservations due in 2 days.
-2.  Identify reservations overdue by 7 days.
-3.  Send emails via the configured email service (e.g., SMTP, SendGrid, Mailgun, or a mock service for development).
+## Late Fees & Book Purchase Logic
 
-Check the scheduler implementation (`src/infrastructure/scheduler/`) and job definitions (`src/interfaces/jobs/`) for details on how this is configured and run.
-
-## Late Fees & Book Purchase
-
-*   Late fees (0.2€/day) are calculated and deducted from the user's wallet when a book is returned via `POST /api/v1/reservations/<RESERVATION_ID>/return`.
-*   A background job might also periodically check for overdue books and apply fees daily, although applying fees upon return is simpler.
-*   If accumulated late fees for a specific borrowing instance reach or exceed the `retailPrice` of the book reference, the reservation status changes (e.g., to `purchased`), the book copy is considered permanently gone, and the user's wallet is charged accordingly (up to the retail price). This logic happens either during the return process or via a background check.
+- **Fee Calculation:** Late fees (0.2€/day) are calculated when a book is returned (`POST /reservations/:id/return`). The fee is based on `currentDate - dueDate`.
+- **Deduction:** Calculated fees are deducted from the user's wallet balance during the return process.
+- **Purchase Condition:** If `accumulated_late_fees >= book.retailPrice` at the time of return (or potentially via a background check), the reservation status is updated to `purchased`, the fee deducted is capped at the `retailPrice`, and the `availableCopies` count for the book reference is permanently decreased. The book is _not_ physically returned to circulation in this case.
 
 ## Assumptions
 
-*   **Database:** MongoDB is used as the primary database.
-*   **API Port:** The API runs on port `3000` by default.
-*   **Authentication:** No complex authentication (like JWT or OAuth) is implemented in the examples. User identification relies on providing `userId` in the request path or body. A real-world application would require proper authentication/authorization.
-*   **Book Availability:** Each book reference starts with exactly 4 available copies unless modified by borrowing/returning/deletion.
-*   **Borrowing Cost:** Each borrowing action costs a flat 3 euros, deducted immediately.
-*   **Late Fee:** A flat fee of 0.2 euros per day applies *after* the due date.
-*   **Due Date:** A standard borrowing period is assumed (e.g., 14 days). This should be configurable or defined in the reservation logic.
-*   **Email Service:** An email sending service/mechanism is configured in the infrastructure layer. For local development, this might be a mock service that logs emails to the console.
-*   **Scheduler:** A task scheduler (like `node-cron` or BullMQ with workers) is implemented and running to handle reminders and potentially other background tasks (like daily fee checks).
-*   **User Schema (Example):** Users collection likely contains fields like `_id`, `name`, `email`, `createdAt`, `updatedAt`, `walletBalance`.
-*   **Reference Schema (Example):** References collection likely contains `_id`, `title`, `author`, `publicationYear`, `isbn`, `retailPrice`, `availableCopies`, `createdAt`, `updatedAt`.
-*   **Reservation Schema (Example):** Reservations collection likely contains `_id`, `userId`, `bookId`, `borrowedDate`, `dueDate`, `returnedDate`, `status` (`active`, `returned`, `overdue`, `purchased`), `lateFeesPaid`, `createdAt`, `updatedAt`.
+- **Database:** MongoDB is the backing data store.
+- **API Port:** API runs on port `3000` unless overridden by `PORT` env var.
+- **Authentication:** No user authentication/authorization is implemented. `userId` is passed directly in requests.
+- **Book Availability:** Each book reference is assumed to start with 4 available copies unless specified otherwise during creation or changed by borrowing/returns/purchases.
+- **Borrowing Limit:** Users can borrow a maximum of 3 books concurrently.
+- **Borrowing Cost:** Borrowing a book costs a flat 3 euros, deducted immediately from the user's wallet.
+- **Late Fee:** 0.2 euros per day _after_ the due date.
+- **Due Date:** A standard borrowing period (e.g., 14 days from borrowing) is assumed. This is set when a reservation is created.
+- **Email Service:** A mock email service (e.g., logging to console) is used instead of a real SMTP service.
+- **Scheduler:** A background task scheduler (like `node-cron`, BullMQ, etc.) is implemented and running for automated tasks like reminders.
+- **Schema Examples (MongoDB):**
+  - **Users:** `{ _id: ObjectId, name: String, email: String, createdAt: Date, updatedAt: Date }` (Wallet balance might be here or fetched from Wallet collection).
+  - **Wallets:** `{ _id: ObjectId, userId: ObjectId, balance: Number, createdAt: Date, updatedAt: Date }`
+  - **References (Books):** `{ _id: ObjectId, isbn: String, title: String, authors: [String], publicationYear: Number, publisher: String, retailPrice: Number, totalCopies: Number, availableCopies: Number, categories: [String], description: String, createdAt: Date, updatedAt: Date }`
+  - **Reservations:** `{ _id: ObjectId, userId: ObjectId, bookId: ObjectId, borrowedDate: Date, dueDate: Date, returnedDate: Date | null, status: String ('active', 'returned', 'overdue', 'purchased'), lateFeesPaid: Number, createdAt: Date, updatedAt: Date }`
