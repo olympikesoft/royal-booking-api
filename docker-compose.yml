@@ -1,0 +1,52 @@
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: library-management-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000
+    environment:
+      - NODE_ENV=${NODE_ENV:-production} # Default to production if not set externally
+      - PORT=3000
+      - MONGODB_URI=mongodb://admin:password@mongodb:27017/royal-library?authSource=admin
+      - JWT_SECRET=${JWT_SECRET:-your_super_secret_key_please_change} # Use environment variables or secrets management in production
+      - EMAIL_HOST=smtp.example.com
+      - EMAIL_PORT=587
+      - EMAIL_SECURE=false # Use true for port 465, false for 587/25 (often with STARTTLS)
+      - EMAIL_USER=user@example.com
+      - EMAIL_PASSWORD=password
+      - EMAIL_FROM=Royal Library <library@royallibrary.be>
+    volumes:
+      - ./data:/usr/src/app/data  # Persist application-generated data
+      - ./tmp:/usr/src/app/tmp    # Temporary files if needed
+    depends_on:
+      - mongodb # Ensure mongodb container is started before the app container
+    networks:
+      - library-network
+
+  mongodb:
+    image: mongo:6.0 # Use a specific MongoDB version
+    container_name: library-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017" # Map host port 27017 to container port 27017
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - library-network
+
+networks:
+  library-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:
+    driver: local
